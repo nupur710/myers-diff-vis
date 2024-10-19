@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Myers Diff Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .input-container {
+            margin-bottom: 20px;
+        }
+        input, button {
+            margin: 5px;
+            padding: 5px;
+        }
+        #diff-grid {
+            display: grid;
+            gap: 1px;
+        }
+        .cell {
+            position: relative;
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+        }
+        .header {
+            background-color: #f0f0f0;
+        }
+        .diagonal-line {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+        }
+
+        .horizontal-line {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            left: 0;
+            top: 0;
+            background: red;
+            pointer-events: none;
+        }
+        .vertical-line {
+            position: absolute;
+            width: 4px;
+            height: 100%;
+            left: 0;
+            top: 0; 
+            background: green;
+            pointer-events: none;
+        }
+        .last-vertical-line {
+            position: absolute;
+            width: 4px;
+            height: 100%;
+            right: 0;
+            top: 0;
+            background: green;
+            pointer-events: none; 
+        }
+        .operation.insert {
+        color: green;
+        bottom: 2px;
+        right: -6px;
+        }
+        .last.operation.insert {
+        color: green;
+        bottom: 2px;
+        right: -16px;
+        }
+        .last.operation.delete {
+        color: red;
+        top: auto;
+        bottom: 2px;
+        left: 10px;
+        }
+        .last-horizontal-line {
+        position: absolute;
+        width: 100%;
+        height: 4px;
+        left: 0;
+        bottom: 0;
+        background: red;
+        pointer-events: none;
+        }
+        .final-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: blue;
+            top: 0;
+        }
+
+        .operation {
+            position: absolute;
+            font-size: 14px;
+        }
+        .operation.insert {
+            color: green;
+            bottom: 2px;
+            right: 4px;
+        }
+        .operation.delete {
+            color: red;
+            top: 2px;
+            left: 2px;
+        }
+        .operation.equal {
+            color: blue;
+            top: 3px;
+            left: 3px;
+            bottom: 3px;
+            right: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="input-container">
+        <input type="text" id="string1" placeholder="Enter first string">
+        <input type="text" id="string2" placeholder="Enter second string">
+        <button onclick="showDiff()">Show Diff</button>
+    </div>
+    <div id="diff-grid"></div>
+
+    <script>
+        async function showDiff() {
+            const string1 = document.getElementById('string1').value;
+            const string2 = document.getElementById('string2').value;
+            
+            if (!string1 || !string2) {
+                alert("Please enter both strings");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/diff', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ string1, string2 }),
+                });
+                const result = await response.json();
+                visualizeDiff(string1, string2, result);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while calculating the diff. Please try again.');
+            }
+        }
+
+        function visualizeDiff(string1, string2, result) {
+            const grid = document.getElementById('diff-grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `auto repeat(${string1.length}, 1fr)`;
+
+            grid.appendChild(createCell('', 'cell header'));
+            for (let char of string1) {
+                grid.appendChild(createCell(char, 'cell header'));
+            }
+
+            let x = 0, y = 0;
+            for (let i = 0; i < string2.length; i++) {
+                grid.appendChild(createCell(string2[i], 'cell header'));
+                for (let j = 0; j < string1.length; j++) {
+                    const cell = createCell('', 'cell');
+                    if (result.length > 0) {
+                        const [op, char] = result[0];
+                        if ((op === '=' && j === x && i === y) ||
+                            (op === '-' && j === x && i === y) ||
+                            (op === '+' && j === x && i === y)) {
+                            
+                            let line, opElement;
+                            
+                            if (op === '=') {
+                                line = document.createElement('div');
+                                line.className = 'diagonal-line';
+                                line.style.background = `linear-gradient(to right top, transparent calc(50% - 2px), blue, transparent calc(50% + 2px))`;
+                                opElement = document.createElement('span');
+                                opElement.textContent = '=' + char;
+                                opElement.className = 'operation';
+                                opElement.style.color = 'blue';
+                                opElement.style.top = '10px';
+                                opElement.style.left = '20px';
+                                x++;
+                                y++;
+                            } else if (op === '-') {
+                                line = document.createElement('div');
+                                line.className = 'horizontal-line';
+                                opElement = document.createElement('span');
+                                opElement.textContent = '-' + char;
+                                opElement.className = 'operation delete';
+                                x++;
+                            } else if (op === '+') {
+                                line = document.createElement('div');
+                                line.className = 'vertical-line';
+                                opElement = document.createElement('span');
+                                opElement.textContent = '+' + char;
+                                opElement.className = 'operation insert';
+                                y++;
+                            }
+                    
+                    cell.appendChild(line);
+                    cell.appendChild(opElement);
+                    result.shift();
+                }
+            }
+            grid.appendChild(cell);
+        }
+    }
+
+    r= result.length;
+    //For insertions and deletions along end of string
+    while (result.length > 0) {
+        const [op, char] = result.shift();
+        if (op === '+') {
+            let lastRow= null;
+            if(r>1) {
+                lastRow = grid.querySelectorAll('.cell:nth-last-child(n+' + (string1.length + 1) + '):nth-last-child(-n+' + (r * (string1.length + 1)) + ')');
+            } else {
+                lastRow = grid.querySelectorAll('.cell:nth-last-child(-n+' + (string1.length + 1) + ')');
+            }
+            const cell = lastRow[x];
+            const line = document.createElement('div');
+            line.className = 'last-vertical-line';
+            const opElement = document.createElement('span');
+            opElement.textContent = '+' + char;
+            opElement.className = 'last operation insert'; 
+            cell.appendChild(line);
+            cell.appendChild(opElement);
+            r--;
+        }
+        else if(op === '-') {
+        const lastRow = grid.querySelectorAll('.cell:nth-last-child(-n+' + (string1.length) + ')');
+        const cell = lastRow[x];
+        const line = document.createElement('div');
+        line.className = 'last-horizontal-line';
+        const opElement = document.createElement('span');
+        opElement.textContent = '-' + char;
+        opElement.className = 'last operation delete';
+        cell.appendChild(line);
+        cell.appendChild(opElement);
+        x++; // Move to next column
+        }
+}
+}
+        function createCell(content, className = '') {
+            const cell = document.createElement('div');
+            cell.textContent = content;
+            cell.className = className;
+            return cell;
+        }
+
+    </script>
+</body>
+</html>
